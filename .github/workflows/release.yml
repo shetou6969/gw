@@ -1,7 +1,8 @@
 name: Publish release
 on:
   push:
-    tags: ['v*.*.*']
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -9,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check tag matches VERSION
-        run: test "${GITHUB_REF_NAME}" = "v$(cat VERSION)"
       - name: Verify source
         run: |
           bash -n install.sh bootstrap.sh
@@ -21,4 +20,10 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF_NAME}" "dist/${GITHUB_REF_NAME}/gw-panel.tar.gz" "dist/${GITHUB_REF_NAME}/SHA256SUMS" --title "GW Panel ${GITHUB_REF_NAME}" --generate-notes --verify-tag
+        run: |
+          VERSION_TAG="v$(cat VERSION)"
+          if gh release view "$VERSION_TAG" >/dev/null 2>&1; then
+            echo "Release $VERSION_TAG 已存在；保持已发布资产不变。"
+            exit 0
+          fi
+          gh release create "$VERSION_TAG" "dist/$VERSION_TAG/gw-panel.tar.gz" "dist/$VERSION_TAG/SHA256SUMS" --title "GW Panel $VERSION_TAG" --generate-notes --target "$GITHUB_SHA"

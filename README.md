@@ -14,7 +14,7 @@ curl -fsSLo gw-bootstrap.sh https://raw.githubusercontent.com/shetou2281215-stac
 
 安装时选择“主控”或“节点”。引导程序从 GitHub Release 下载 `gw-panel.tar.gz` 和 `SHA256SUMS`，验证版本、SHA256 及包内仓库标记后执行安装。发布新版本后，在已安装的任一服务器运行 `sudo gw-panel --update`；修改管理员密码、Web 地址或节点主控地址运行 `sudo gw-panel --configure`；查看本机管理程序版本运行 `gw-panel --version`。升级会备份主控数据库或节点凭据，检查服务健康状况，失败时恢复旧程序与状态。
 
-也可从完整的本地发行包执行 `sudo bash install.sh --update`，无需远程下载。仅推送源码不会产生可安装版本；需要推送与 `VERSION` 一致的 `vX.Y.Z` 标签，由仓库工作流发布正式 Release。
+也可从完整的本地发行包执行 `sudo bash install.sh --update`，无需远程下载。每次发布先提升 `VERSION`，推送到 `main` 后仓库工作流运行测试并创建对应的 `vX.Y.Z` 正式 Release。相同版本的后续提交不会覆盖已发布的安装包。
 
 ## 一、使用流程
 
