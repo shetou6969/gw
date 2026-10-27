@@ -1,0 +1,24 @@
+name: Publish release
+on:
+  push:
+    tags: ['v*.*.*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check tag matches VERSION
+        run: test "${GITHUB_REF_NAME}" = "v$(cat VERSION)"
+      - name: Verify source
+        run: |
+          bash -n install.sh bootstrap.sh
+          python3 -m compileall -q gw.py setup.py gwlib
+          python3 -m unittest discover -s tests -v
+      - name: Build release assets
+        run: python3 tools/make_release.py
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${GITHUB_REF_NAME}" "dist/${GITHUB_REF_NAME}/gw-panel.tar.gz" "dist/${GITHUB_REF_NAME}/SHA256SUMS" --title "GW Panel ${GITHUB_REF_NAME}" --generate-notes --verify-tag
