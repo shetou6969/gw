@@ -10,7 +10,7 @@ import secrets
 import ssl
 import threading
 import time
-from . import node,model,protocols,security,version
+from . import node,model,protocols,security,version,qrcode
 
 SETTINGS=node.STATE/'controller.json'
 
@@ -106,8 +106,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.path.startswith('/api/export/'):
                 pid=self.path.rsplit('/',1)[-1];r=c.execute('SELECT p.*,n.ip FROM protocols p JOIN nodes n ON n.id=p.node_id WHERE p.id=? AND p.deleted=0',(pid,)).fetchone()
                 if not r:raise ValueError('协议不存在')
-                s=json.loads(r['spec']);out=protocols.client(s,r['ip'])
-                return self.reply(200,{'name':s['name'],'url':protocols.share(s,r['ip']),'outbound':out,'client':{'inbounds':[{'type':'mixed','listen':'127.0.0.1','listen_port':1080}], 'outbounds':[out]} if out else None})
+                s=json.loads(r['spec']);out=protocols.client(s,r['ip']);url=protocols.share(s,r['ip'])
+                return self.reply(200,{'name':s['name'],'url':url,'qr_svg':qrcode.svg(url) if url else None,'outbound':out,'client':{'inbounds':[{'type':'mixed','listen':'127.0.0.1','listen_port':1080}], 'outbounds':[out]} if out else None})
         self.reply(404,{'error':'不存在'})
     def post(self):
         if self.server.surface=='agent':

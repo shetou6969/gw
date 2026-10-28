@@ -201,5 +201,31 @@ class WebTest(unittest.TestCase):
         code,v=self.call('/api/login',{'username':'admin','password':'test-password-12345'});self.assertEqual(code,401);self.assertIn('尝试过多',v['error'])
     def test_password_not_plaintext(self):
         saved=(self.root/'account.json').read_text();self.assertNotIn('test-password-12345',saved)
+    def test_connection_export_includes_link_and_qr(self):
+        with model.connect() as c:
+            registration=model.register(c,{'name':'N','ip':'198.51.100.8'})
+            model.enroll(c,{'id':registration['id'],'secret':registration['secret'],'credential':'a'*48},'198.51.100.8')
+            spec={'name':'VLESS','kind':'vless-reality','port':443,'uuid':'123e4567-e89b-12d3-a456-426614174000','sni':'example.com','private_key':'private','public_key':'public','short_id':'abcd1234'}
+            c.execute('INSERT INTO protocols(id,node_id,spec) VALUES(?,?,?)',('p',registration['id'],json.dumps(spec)))
+        _,login=self.call('/api/login',{'username':'admin','password':'test-password-12345'})
+        with patch.object(control.qrcode,'svg',return_value='<svg/>') as qr:
+            status,result=self.call('/api/export/p',token=login['token'])
+        self.assertEqual(status,200)
+        self.assertTrue(result['url'].startswith('vless://'))
+        self.assertEqual(result['qr_svg'],'<svg/>')
+        qr.assert_called_once_with(result['url'])
+    def test_selfsigned_export_has_no_share_qr(self):
+        with model.connect() as c:
+            registration=model.register(c,{'name':'N','ip':'198.51.100.8'})
+            model.enroll(c,{'id':registration['id'],'secret':registration['secret'],'credential':'a'*48},'198.51.100.8')
+            spec={'name':'Trojan','kind':'trojan','port':443,'password':'secret','tls_mode':'selfsigned','tls':{'enabled':True,'certificate':['cert'],'key':['key']}}
+            c.execute('INSERT INTO protocols(id,node_id,spec) VALUES(?,?,?)',('p',registration['id'],json.dumps(spec)))
+        _,login=self.call('/api/login',{'username':'admin','password':'test-password-12345'})
+        with patch.object(control.qrcode,'svg') as qr:
+            status,result=self.call('/api/export/p',token=login['token'])
+        self.assertEqual(status,200)
+        self.assertIsNone(result['url']);self.assertIsNone(result['qr_svg'])
+        self.assertIsNotNone(result['client'])
+        qr.assert_not_called()
 
 if __name__=='__main__':unittest.main()

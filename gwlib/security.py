@@ -6,10 +6,9 @@ import json
 import re
 import secrets
 import struct
-import subprocess
 import time
 from urllib.parse import quote,urlencode
-from . import model
+from . import model,qrcode
 
 
 def init(c):
@@ -51,10 +50,7 @@ def begin_setup(c,username):
     secret=base64.b32encode(secrets.token_bytes(20)).decode().rstrip('=')
     c.execute('UPDATE auth_security SET pending_secret=?,pending_until=? WHERE id=1',(secret,time.time()+600))
     uri='otpauth://totp/'+quote('GW Panel:'+username,safe='')+'?'+urlencode({'secret':secret,'issuer':'GW Panel','algorithm':'SHA1','digits':6,'period':30})
-    svg=None
-    try:svg=subprocess.run(['qrencode','-t','SVG','-o','-','-s','6'],input=uri.encode(),capture_output=True,check=True,timeout=5).stdout.decode()
-    except (OSError,subprocess.SubprocessError):pass
-    return {'secret':secret,'uri':uri,'svg':svg,'expires_in':600}
+    return {'secret':secret,'uri':uri,'svg':qrcode.svg(uri),'expires_in':600}
 
 def confirm_setup(c,code,session):
     init(c);r=c.execute('SELECT * FROM auth_security WHERE id=1').fetchone()
