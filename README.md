@@ -1,4 +1,4 @@
-# GW Panel 0.4.0
+# GW Panel 0.4.1
 
 Web 集中管理版。安装时选择“主控”、“节点”或“主控兼节点”，协议、出口、服务操作和删除清理均通过 Web 完成。不再安装交互式节点菜单或终端二维码工具。
 
@@ -21,6 +21,8 @@ curl -fsSLo gw-bootstrap.sh https://raw.githubusercontent.com/shetou6969/gw/main
 已有主控先运行 `sudo gw-panel --update` 升至 0.4.0，再在 Web 登记本机节点并运行 `sudo gw-panel --add-node`。如果节点安装中断，主控仍可使用；重新运行 `sudo gw-panel --add-node` 继续。删除这个本机节点只移除 Agent 和代理配置，主控、管理员账号及 Web 服务保留。
 
 本机节点对其他节点做加密中转时，来源地址按登记的公网 IP 约束；若服务器实际经 NAT 使用不同的出口 IP，需要确认或调整网络来源后再使用跨节点出口。
+
+服务器列表以“配置已同步 / 配置待应用”显示节点状态。目标与已应用版本号是配置修订号，每次新增、修改或删除协议时递增，不代表协议数量；鼠标悬停在状态上可查看具体版本号。
 
 也可从完整的本地发行包执行 `sudo bash install.sh --update`，无需远程下载。每次发布先提升 `VERSION`，推送到 `main` 后仓库工作流运行测试并创建对应的 `vX.Y.Z` 正式 Release。相同版本的后续提交不会覆盖已发布的安装包。
 
