@@ -12,6 +12,15 @@ import urllib.request
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from gwlib import model,node,control,agent,protocols,security,updater
 
+class ProtocolShareTest(unittest.TestCase):
+    def test_vless_reality_ignores_irrelevant_selfsigned_form_value(self):
+        spec={'name':'Reality','kind':'vless-reality','port':443,'uuid':'123e4567-e89b-12d3-a456-426614174000','sni':'example.com','public_key':'public','short_id':'abcd1234','tls_mode':'selfsigned'}
+        self.assertTrue(protocols.share(spec,'198.51.100.8').startswith('vless://'))
+
+    def test_real_selfsigned_tls_keeps_json_only(self):
+        spec={'name':'Trojan','kind':'trojan','port':443,'password':'secret','tls_mode':'selfsigned'}
+        self.assertIsNone(protocols.share(spec,'198.51.100.8'))
+
 class ModelTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)

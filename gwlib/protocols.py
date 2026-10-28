@@ -136,8 +136,9 @@ def client(s,ip):
     return b
 
 def share(s,ip):
-    if s.get('tls_mode')=='selfsigned':return None # Use exported client JSON with the exact trusted certificate.
-    k=s['kind'];typ=k.split('-')[0];addr=f'[{ip}]' if ':' in ip else ip
+    k=s['kind']
+    if tls_needed(k) and s.get('tls_mode')=='selfsigned':return None # Use exported client JSON with the exact trusted certificate.
+    typ=k.split('-')[0];addr=f'[{ip}]' if ':' in ip else ip
     label=quote(s['name'],safe='');q={};secret=s['uuid']
     if k=='shadowsocks':
         secret=base64.urlsafe_b64encode((s['method']+':'+s['password']).encode()).decode().rstrip('=')
