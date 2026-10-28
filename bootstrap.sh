@@ -2,7 +2,7 @@
 # Public, single-command entry point. The installer itself comes from a verified Release.
 set -euo pipefail
 umask 077
-REPOSITORY=shetou2281215-stack/gw
+REPOSITORY=shetou6969/gw
 [[ $EUID == 0 && $(uname -s) == Linux ]] || { echo '请在 Linux 服务器使用 sudo bash 运行';exit 1; }
 if ! command -v python3 >/dev/null; then
     command -v apt-get >/dev/null || { echo '需要 Debian/Ubuntu 的 Python 3';exit 1; }

@@ -1,4 +1,4 @@
-# GW Panel 0.3.0
+# GW Panel 0.3.1
 
 Web 集中管理版。安装时只选择“主控”或“节点”，协议、出口、服务操作和删除清理均通过 Web 完成。不再安装交互式节点菜单或终端二维码工具。
 
@@ -6,10 +6,10 @@ Web 集中管理版。安装时只选择“主控”或“节点”，协议、�
 
 ## 快速安装与维护
 
-正式 Release 发布到公开仓库后，主控与节点使用同一个安装入口：
+主控与节点使用同一个安装入口：
 
 ```bash
-curl -fsSLo gw-bootstrap.sh https://raw.githubusercontent.com/shetou2281215-stack/gw/main/bootstrap.sh && sudo bash gw-bootstrap.sh
+curl -fsSLo gw-bootstrap.sh https://raw.githubusercontent.com/shetou6969/gw/main/bootstrap.sh && sudo bash gw-bootstrap.sh
 ```
 
 安装时选择“主控”或“节点”。引导程序从 GitHub Release 下载 `gw-panel.tar.gz` 和 `SHA256SUMS`，验证版本、SHA256 及包内仓库标记后执行安装。发布新版本后，在已安装的任一服务器运行 `sudo gw-panel --update`；修改管理员密码、Web 地址或节点主控地址运行 `sudo gw-panel --configure`；查看本机管理程序版本运行 `gw-panel --version`。升级会备份主控数据库或节点凭据，检查服务健康状况，失败时恢复旧程序与状态。
@@ -155,7 +155,7 @@ Web 删除后重新计算配置：移除入口节点的入站/出口/路由，�
 
 依赖只包括既有操作系统软件源中的基础包，以及 `SagerNet/sing-box` 官方发行包。Python 仅标准库；Web 无外部 CDN/npm/二维码服务；无 233boy 或其他代理面板仓库运行依赖。默认 sing-box 固定为 `1.14.4`。校验和匹配官方元数据不等于对官方核心进行了代码安全审计。
 
-公开仓库：`shetou2281215-stack/gw`。发布正式 GitHub Release 前，上面的网络安装与更新命令尚不可用；本地包的 `sudo bash install.sh` 可独立使用。
+公开仓库：`shetou6969/gw`。本地包的 `sudo bash install.sh` 也可独立使用。
 
 ## 六、配置一致性与维护边界
 
