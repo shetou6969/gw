@@ -99,9 +99,9 @@ def restore_state(source):
         shutil.copy2(path,node.STATE/path.name)
 
 def health(role,expected):
-    service='gw-controller' if role=='controller' else 'gw-agent'
-    time.sleep(1);node.run(['systemctl','is-active','--quiet',service])
-    if role=='controller':
+    time.sleep(1)
+    for service in services(role):node.run(['systemctl','is-active','--quiet',service])
+    if role in ('controller','both'):
         cfg=json.loads((node.STATE/'controller.json').read_text());pem=Path(cfg['cert']).read_text();pin=hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
         context=ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT);context.check_hostname=False;context.verify_mode=ssl.CERT_NONE
         conn=http.client.HTTPSConnection('127.0.0.1',cfg['web_port'],context=context,timeout=10)
@@ -112,13 +112,18 @@ def health(role,expected):
             if response.status!=200 or data.get('version')!=expected:raise ValueError('主控新版本健康检查失败')
         finally:conn.close()
 
+def services(role):
+    if role=='controller':return ('gw-controller',)
+    if role=='node':return ('gw-agent',)
+    if role=='both':return ('gw-controller','gw-agent')
+    raise ValueError('无效安装角色')
+
 def install_package(source,new_version):
     source=Path(source);semver(new_version)
     if source.resolve()==INSTALL.resolve():raise ValueError('不能用当前运行目录覆盖自身')
     if semver(new_version)<semver((INSTALL/'VERSION').read_text().strip()):raise ValueError('拒绝降级，避免数据结构不兼容')
     role=(node.STATE/'role').read_text().strip()
-    if role not in ('controller','node'):raise ValueError('无效安装角色')
-    service='gw-controller' if role=='controller' else 'gw-agent'
+    active_services=services(role)
     backup=INSTALL.parent/'gw.previous';stage=INSTALL.parent/'.gw-update-stage'
     if stage.exists():shutil.rmtree(stage)
     shutil.copytree(source,stage,ignore=shutil.ignore_patterns('__pycache__','.git','release.tar.gz'))
@@ -126,22 +131,24 @@ def install_package(source,new_version):
     if not compileall.compile_dir(stage,quiet=1):raise ValueError('新版本语法检查失败')
     subprocess.run(['bash','-n',str(stage/'install.sh')],check=True,capture_output=True)
     state_backup=node.STATE/('update-backup-'+str(time.time_ns()))
-    node.run(['systemctl','stop',service])
     switched=False
     try:
+        for service in reversed(active_services):node.run(['systemctl','stop',service])
         backup_state(state_backup)
         if backup.exists():shutil.rmtree(backup)
         os.replace(INSTALL,backup);switched=True;os.replace(stage,INSTALL)
-        node.run(['systemctl','start',service]);health(role,new_version)
+        for service in active_services:node.run(['systemctl','start',service])
+        health(role,new_version)
         launcher=Path('/usr/local/bin/gw-panel')
         launcher.write_text('#!/bin/sh\nexec /bin/bash /opt/gw/install.sh "$@"\n')
         launcher.chmod(0o755)
     except BaseException:
         if switched:
-            subprocess.run(['systemctl','stop',service],capture_output=True)
+            for service in reversed(active_services):subprocess.run(['systemctl','stop',service],capture_output=True)
             if INSTALL.exists():shutil.rmtree(INSTALL)
             os.replace(backup,INSTALL);restore_state(state_backup)
-        node.run(['systemctl','start',service]);raise
+        for service in active_services:node.run(['systemctl','start',service])
+        raise
     print('管理程序更新成功：'+new_version+'；账号、2FA、节点凭据和代理配置已保留。')
     print('升级前数据备份：'+str(state_backup))
 

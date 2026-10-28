@@ -2,6 +2,13 @@
 set -euo pipefail
 umask 077
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+install_launcher() {
+    cat >/usr/local/bin/gw-panel <<'EOF'
+#!/bin/sh
+exec /bin/bash /opt/gw/install.sh "$@"
+EOF
+    chmod 755 /usr/local/bin/gw-panel
+}
 if [[ ${1:-} == --version ]]; then
     [[ -f /opt/gw/VERSION ]] || { echo '尚未安装 GW Panel';exit 1; }
     cat /opt/gw/VERSION
@@ -20,36 +27,46 @@ case ${1:-} in
     --configure)
         [[ -f /etc/gw/role ]] || { echo '请先安装 GW Panel';exit 1; }
         python3 /opt/gw/gw.py configure;exit 0;;
+    --add-node)
+        [[ -f /etc/gw/install-complete && -f /opt/gw/VERSION ]] || { echo '请先完成主控安装';exit 1; }
+        [[ $(cat /etc/gw/role) == controller ]] || { echo '本机不是仅主控，或节点已安装';exit 1; }
+        [[ $HERE == /opt/gw ]] || { echo '请使用已安装的 sudo gw-panel --add-node';exit 1; }
+        role=both;add_node=1;;
     '') ;;
-    *) echo '用法：sudo bash install.sh [--update|--configure|--version]';exit 2;;
+    *) echo '用法：sudo bash install.sh [--update|--configure|--add-node|--version]';exit 2;;
 esac
 if [[ -d /opt/gw && ! -f /opt/gw/VERSION ]]; then echo '检测到旧版管理程序，请使用干净环境测试本版本。';exit 1;fi
-if [[ -f /etc/gw/role ]]; then
+if [[ ${add_node:-0} == 1 ]]; then
+    echo '在 Web 添加本机节点：公网 IP 填服务器地址，接入验证来源 IP 填 127.0.0.1。'
+elif [[ -f /etc/gw/role ]]; then
     role=$(cat /etc/gw/role)
     [[ ! -f /etc/gw/install-complete ]] || { echo '本机已安装；使用 gw-panel --update 或 gw-panel --configure。';exit 1; }
     echo "继续未完成安装：$role"
 else
-    echo '1) 安装主控（Web + 数据库）    2) 安装节点'
-    read -r -p '请选择 [1/2]：' selected
-    case $selected in 1) role=controller;;2) role=node;;*)exit 1;;esac
+    echo '1) 安装主控（Web + 数据库）    2) 安装节点    3) 主控兼节点'
+    read -r -p '请选择 [1/2/3]：' selected
+    case $selected in 1) role=controller;;2) role=node;;3) role=both;;*)exit 1;;esac
 fi
-# Enrollment runs from the local package before installing a node core or creating services.
-# A rejected / missing registration ends the installer here.
+# Remote nodes enroll before installing a core or creating services.
+# A combined install starts its controller before local enrollment.
 if [[ $role == node ]]; then
     python3 "$HERE/setup.py" node
 else
     apt-get update;apt-get install -y python3 ca-certificates openssl
     [[ -f /etc/gw/controller.json ]] || python3 "$HERE/setup.py" controller
 fi
-mkdir -p /opt/gw /etc/gw
-chmod 700 /etc/gw
-printf '%s\n' "$role" >/etc/gw/role
-if [[ $HERE != /opt/gw ]]; then cp -a "$HERE/gw.py" "$HERE/setup.py" "$HERE/gwlib" "$HERE/install.sh" "$HERE/LICENSE" "$HERE/NOTICE.md" "$HERE/README.md" "$HERE/VERSION" "$HERE/REPOSITORY.json" /opt/gw/;fi
-apt-get update
-apt-get install -y python3 ca-certificates openssl curl procps iproute2 kmod qrencode
-# Same official core is installed on the controller to generate keys and validate configs.
-[[ -x /opt/gw/bin/sing-box ]] || python3 /opt/gw/gw.py download 1.14.4
-if [[ $role == controller ]]; then
+if [[ ${add_node:-0} != 1 ]]; then
+    mkdir -p /opt/gw /etc/gw
+    chmod 700 /etc/gw
+    # A combined install starts as a working controller; local node enrollment follows.
+    if [[ $role == both ]]; then printf 'controller\n' >/etc/gw/role;else printf '%s\n' "$role" >/etc/gw/role;fi
+    if [[ $HERE != /opt/gw ]]; then cp -a "$HERE/gw.py" "$HERE/setup.py" "$HERE/gwlib" "$HERE/install.sh" "$HERE/LICENSE" "$HERE/NOTICE.md" "$HERE/README.md" "$HERE/VERSION" "$HERE/REPOSITORY.json" /opt/gw/;fi
+    apt-get update
+    apt-get install -y python3 ca-certificates openssl curl procps iproute2 kmod qrencode
+    # Same official core is installed on the controller to generate keys and validate configs.
+    [[ -x /opt/gw/bin/sing-box ]] || python3 /opt/gw/gw.py download 1.14.4
+fi
+if [[ $role == controller || $role == both && ${add_node:-0} != 1 ]]; then
     cat >/etc/systemd/system/gw-controller.service <<'EOF'
 [Unit]
 Description=GW Panel controller
@@ -71,7 +88,16 @@ EOF
     systemctl daemon-reload;systemctl enable --now gw-controller
     sleep 1
     systemctl is-active --quiet gw-controller
-else
+    if [[ $role == both ]]; then install_launcher;fi
+fi
+if [[ $role == node || $role == both ]]; then
+    if [[ $role == both ]]; then
+        touch /etc/gw/install-complete
+        if [[ ${add_node:-0} != 1 ]]; then
+            echo '主控已启动。请在 Web 添加本机节点；公网 IP 填服务器地址，接入验证来源 IP 填 127.0.0.1。'
+        fi
+        python3 /opt/gw/setup.py node-local
+    fi
     python3 /opt/gw/gw.py init-node
     cat >/etc/systemd/system/gw-proxy.service <<'EOF'
 [Unit]
@@ -106,12 +132,9 @@ EOF
     sleep 1
     systemctl is-active --quiet gw-proxy
     systemctl is-active --quiet gw-agent
+    if [[ $role == both ]]; then printf 'both\n' >/etc/gw/role;fi
 fi
 touch /etc/gw/install-complete
-cat >/usr/local/bin/gw-panel <<'EOF'
-#!/bin/sh
-exec /bin/bash /opt/gw/install.sh "$@"
-EOF
-chmod 755 /usr/local/bin/gw-panel
+install_launcher
 echo '安装完成。此后所有协议创建、出口及清理操作均在 Web 面板执行。'
 echo '请在云安全组/防火墙放行主控所选端口及面板显示的协议/内部转发端口。'

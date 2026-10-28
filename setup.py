@@ -35,7 +35,7 @@ def setup_controller():
     print(f'面板地址：https://{addr}:{web}\n节点上线端口：{port}\n账号：{username}')
     print('自签证书需在浏览器中正确安装信任；节点会验证面板接入码内的证书指纹。')
 
-def setup_node():
+def setup_node(local=False):
     if (node.STATE/'enrollment-pending.json').exists():
         pending=json.loads((node.STATE/'enrollment-pending.json').read_text());agent.finish_enrollment(pending['config'],pending['secret'])
     if (node.STATE/'agent.json').exists():
@@ -43,13 +43,21 @@ def setup_node():
         result=agent.request(cfg,'/agent/poll',{'id':cfg['id'],'applied':0,'command_ack':0,'status':'恢复安装','info':{}})
         if result.get('purge') or result.get('terminate'):raise ValueError('该节点已进入清理流程，不能恢复安装')
         print('已有接入凭据通过主控认证，继续未完成的安装。');return
-    host=protocols.host(ask('主控 IP 或域名'));port=node.port(ask('主控节点上线端口','9443'))
+    if local:
+        print('本机主控：请先在 Web 添加服务器，公网 IP 填本机地址，接入验证来源 IP 填 127.0.0.1。')
+        controller=json.loads((node.STATE/'controller.json').read_text())
+    host=protocols.host(ask('主控 IP 或域名','127.0.0.1' if local else ''))
+    port=node.port(ask('主控节点上线端口',str(controller['agent_port']) if local else '9443'))
     code=getpass.getpass('粘贴 Web 面板生成的接入码（不回显）：')
     agent.join(host,port,code);print('主控已验证预登记 IP 和一次性密钥，开始安装节点服务。')
 
 def configure():
     """Change installed parameters without replacing credentials or node state."""
     role=(node.STATE/'role').read_text().strip()
+    if role=='both':
+        target=ask('修改 1) 主控  2) 节点')
+        role={'1':'controller','2':'node'}.get(target)
+        if not role:raise ValueError('无效选择')
     if role=='controller':
         cfg=json.loads(control.SETTINGS.read_text())
         print('1) 修改管理员账号/密码  2) 修改 Web 地址/端口  3) 修改节点接入端口')
@@ -109,6 +117,7 @@ if __name__=='__main__':
     try:
         if sys.argv[1]=='controller':setup_controller()
         elif sys.argv[1]=='node':setup_node()
+        elif sys.argv[1]=='node-local':setup_node(local=True)
         elif sys.argv[1]=='configure':configure()
         else:raise ValueError('无效安装角色')
     except (Exception,KeyboardInterrupt) as e:sys.exit('安装停止：'+str(e))

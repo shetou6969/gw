@@ -1,6 +1,6 @@
-# GW Panel 0.3.1
+# GW Panel 0.4.0
 
-Web 集中管理版。安装时只选择“主控”或“节点”，协议、出口、服务操作和删除清理均通过 Web 完成。不再安装交互式节点菜单或终端二维码工具。
+Web 集中管理版。安装时选择“主控”、“节点”或“主控兼节点”，协议、出口、服务操作和删除清理均通过 Web 完成。不再安装交互式节点菜单或终端二维码工具。
 
 此版本沿用 0.2 的集中管理架构，增加管理程序版本、GitHub Release 更新和 Web 2FA。已完成本地 HTTPS、核心流量和控制流程测试；尚未在真实 Debian/Ubuntu 服务器进行安装验收，请先在测试服务器验证。
 
@@ -12,7 +12,15 @@ Web 集中管理版。安装时只选择“主控”或“节点”，协议、�
 curl -fsSLo gw-bootstrap.sh https://raw.githubusercontent.com/shetou6969/gw/main/bootstrap.sh && sudo bash gw-bootstrap.sh
 ```
 
-安装时选择“主控”或“节点”。引导程序从 GitHub Release 下载 `gw-panel.tar.gz` 和 `SHA256SUMS`，验证版本、SHA256 及包内仓库标记后执行安装。发布新版本后，在已安装的任一服务器运行 `sudo gw-panel --update`；修改管理员密码、Web 地址或节点主控地址运行 `sudo gw-panel --configure`；查看本机管理程序版本运行 `gw-panel --version`。升级会备份主控数据库或节点凭据，检查服务健康状况，失败时恢复旧程序与状态。
+安装时选择“主控”、“节点”或“主控兼节点”。引导程序从 GitHub Release 下载 `gw-panel.tar.gz` 和 `SHA256SUMS`，验证版本、SHA256 及包内仓库标记后执行安装。发布新版本后，在已安装的任一服务器运行 `sudo gw-panel --update`；修改管理员密码、Web 地址或节点主控地址运行 `sudo gw-panel --configure`；查看本机管理程序版本运行 `gw-panel --version`。升级会备份主控数据库和节点凭据，检查已安装的服务，失败时恢复旧程序与状态。
+
+### 主控和节点安装在同一台服务器
+
+新服务器在安装菜单选“3 主控兼节点”。安装器先启动主控，再提示在 Web“服务器 → 添加服务器”登记本机节点：公网 IP 填这台服务器的对外地址；**接入验证来源 IP 填 `127.0.0.1`**；内部转发端口按需设置。复制一次性接入码回到安装器，节点会通过本机回环地址连接主控并验证证书指纹。主控 Web 端口、节点接入端口、代理协议监听端口及内部转发端口不得冲突。
+
+已有主控先运行 `sudo gw-panel --update` 升至 0.4.0，再在 Web 登记本机节点并运行 `sudo gw-panel --add-node`。如果节点安装中断，主控仍可使用；重新运行 `sudo gw-panel --add-node` 继续。删除这个本机节点只移除 Agent 和代理配置，主控、管理员账号及 Web 服务保留。
+
+本机节点对其他节点做加密中转时，来源地址按登记的公网 IP 约束；若服务器实际经 NAT 使用不同的出口 IP，需要确认或调整网络来源后再使用跨节点出口。
 
 也可从完整的本地发行包执行 `sudo bash install.sh --update`，无需远程下载。每次发布先提升 `VERSION`，推送到 `main` 后仓库工作流运行测试并创建对应的 `vX.Y.Z` 正式 Release。相同版本的后续提交不会覆盖已发布的安装包。
 
@@ -26,7 +34,7 @@ curl -fsSLo gw-bootstrap.sh https://raw.githubusercontent.com/shetou6969/gw/main
 sudo bash install.sh
 ```
 
-选择“1 安装主控”，填写：
+选择“1 安装主控”（同机安装则选“3 主控兼节点”），填写：
 
 - 主控公网 IP 或域名。
 - Web HTTPS 端口，默认 `8443`。

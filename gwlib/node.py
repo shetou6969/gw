@@ -110,6 +110,12 @@ def finish_cleanup():
         run(['systemctl','disable','gw-agent'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         unit.unlink()
     run(['systemctl','daemon-reload'])
-    for name in ('agent.json','agent-state.json','install-complete','role','enrollment-pending.json'):
+    for name in ('agent.json','agent-state.json','enrollment-pending.json'):
         (STATE/name).unlink(missing_ok=True)
+    role=STATE/'role'
+    if role.exists() and role.read_text().strip()=='both':
+        role.write_text('controller\n')
+    else:
+        (STATE/'install-complete').unlink(missing_ok=True)
+        role.unlink(missing_ok=True)
     # The current process returns successfully; Restart=on-failure cannot resurrect it.

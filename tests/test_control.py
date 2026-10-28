@@ -10,7 +10,7 @@ from unittest.mock import patch
 import urllib.error
 import urllib.request
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from gwlib import model,node,control,agent,protocols,security
+from gwlib import model,node,control,agent,protocols,security,updater
 
 class ModelTest(unittest.TestCase):
     def setUp(self):
@@ -52,6 +52,13 @@ class ModelTest(unittest.TestCase):
         out=a['files']['p-'+p['id']+'.json']['outbounds'][0];inbound=b['files']['link-'+p['id']+'.json']['inbounds'][0]
         self.assertEqual(out['password'],inbound['password']);self.assertEqual(out['server_port'],inbound['listen_port']);self.assertEqual(out['type'],'shadowsocks')
         rules=b['files']['link-'+p['id']+'.json']['route']['rules'];self.assertEqual(rules[0]['source_ip_cidr'],['127.0.0.1/32']);self.assertEqual(rules[1]['action'],'reject')
+    def test_local_controller_node_uses_public_ip_for_relay(self):
+        local=model.register(self.c,{'name':'local','ip':'198.51.100.7','join_ip':'127.0.0.1'})
+        model.enroll(self.c,{'id':local['id'],'secret':local['secret'],'credential':'c'*48},'127.0.0.1')
+        p=self.save(self.b['id'],owner=local['id'])
+        target=json.loads(self.row(self.b['id'])['desired'])
+        rules=target['files']['link-'+p['id']+'.json']['route']['rules']
+        self.assertEqual(rules[0]['source_ip_cidr'],['198.51.100.7/32'])
     def test_destination_before_source(self):
         self.save(self.b['id']);r=self.poll();self.assertIsNone(r['desired']);self.assertIn(self.b['id'],r['waiting'])
         dest=self.poll('b');self.assertIsNotNone(dest['desired']);self.poll('b',applied=dest['revision']);self.assertIsNotNone(self.poll()['desired'])
@@ -93,6 +100,25 @@ class AgentTest(unittest.TestCase):
     def tearDown(self):
         for p in self.patches:p.stop()
         self.tmp.cleanup()
+    def test_local_node_cleanup_preserves_controller_install(self):
+        (self.root/'role').write_text('both\n')
+        (self.root/'install-complete').touch()
+        (self.root/'agent.json').write_text('{}')
+        with patch.object(node,'run'):
+            node.finish_cleanup()
+        self.assertEqual((self.root/'role').read_text(),'controller\n')
+        self.assertTrue((self.root/'install-complete').exists())
+        self.assertFalse((self.root/'agent.json').exists())
+    def test_combined_upgrade_starts_both_services(self):
+        cert=self.root/'tls.crt';cert.write_text('test cert')
+        (self.root/'controller.json').write_text(json.dumps({'cert':str(cert),'web_port':8443}))
+        with patch.object(updater.node,'run') as run,patch.object(updater.time,'sleep'),patch.object(updater.ssl,'PEM_cert_to_DER_cert',return_value=b'cert'),patch.object(updater.http.client,'HTTPSConnection') as connection:
+            connection.return_value.sock.getpeercert.return_value=b'cert'
+            response=connection.return_value.getresponse.return_value
+            response.status=200;response.read.return_value=b'{"version":"0.4.0"}'
+            updater.health('both','0.4.0')
+        self.assertEqual([x.args[0][-1] for x in run.call_args_list],['gw-controller','gw-agent'])
+        connection.return_value.request.assert_called_once_with('GET','/healthz')
     def test_failed_enrollment_does_not_save_agent(self):
         with patch.object(agent,'request',side_effect=PermissionError('no')):
             with self.assertRaises(PermissionError):agent.join('example.com',9443,'1234567890abcdef.secret.'+'a'*64)

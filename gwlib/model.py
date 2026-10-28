@@ -110,7 +110,10 @@ def build(c):
                 used[dest].add(port);s['link_port']=port;c.execute('UPDATE protocols SET spec=? WHERE id=?',(json.dumps(s),pid))
             remote='link-'+pid
             listener={'type':'shadowsocks','tag':remote,'listen':'::','listen_port':port,'method':'2022-blake3-aes-128-gcm','password':s['link_key']}
-            src=ns[owner]['join_ip'];prefix=128 if ':' in src else 32
+            # A local agent may poll over loopback while relay traffic exits via its public IP.
+            src=ns[owner]['join_ip']
+            if src in ('127.0.0.1','::1') and ns[owner]['ip']!=src:src=ns[owner]['ip']
+            prefix=128 if ':' in src else 32
             configs[dest]['files'][remote+'.json']={'inbounds':[listener],'route':{'rules':[
                 {'inbound':[remote],'source_ip_cidr':[f'{src}/{prefix}'],'action':'route','outbound':'direct'},
                 {'inbound':[remote],'action':'reject'}]}}
